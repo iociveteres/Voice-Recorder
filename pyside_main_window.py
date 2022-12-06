@@ -152,6 +152,7 @@ class MainWindow(QMainWindow):
         self._cur_file_name = cur_file_name
 
         self.setWindowFlags(Qt.Tool)
+        self.setWindowFlags(Qt.WindowStaysOnTopHint)
         self.setWindowTitle("My App")
         self.setWindowFlag(Qt.FramelessWindowHint)
         self.setFixedSize(QSize(300, 130))
