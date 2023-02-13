@@ -1,4 +1,4 @@
-from multiprocessing import Process
+from multiprocessing import Process, Lock
 
 import numpy as np
 import torch
@@ -13,6 +13,8 @@ import threading
 import msvcrt
 import wave
 from datetime import datetime
+import multiprocessing as mp
+import ctypes
 # model setup
 model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
                               model='silero_vad',
@@ -33,7 +35,9 @@ audio = pyaudio.PyAudio()
 recording_length = 15 # in seconds
 confidence_threshold = 0.95
 conf_length = 20 # how much measurements to take
-conf_enough = 10 
+conf_enough = 10
+
+cur_file_name = mp.Value(ctypes.c_wchar_p, '00-00-0000_00-00-00')
 # Helper Methods
 # Taken from utils_vad.py
 def validate(model,
@@ -65,17 +69,27 @@ def start_recording():
     pr.disable()
     pr.print_stats(sort='time')
 
-def detect_voice_activity():
+def detect_voice_activity(lock: Lock,):
+    lock.acquire()
     stream = audio.open(format=FORMAT,
                     channels=CHANNELS,
-                    rate=SAMPLE_RATE,
+                    rate=SAMPLE_RATE, 
                     input=True,
-                    frames_per_buffer=CHUNK)
+                    frames_per_buffer=CHUNK,
+                    input_device_index=1
+                    )
+
+    info = audio.get_host_api_info_by_index(0)
+    numdevices = info.get('deviceCount') 
+    for i in range(0, numdevices):
+        if (audio.get_device_info_by_host_api_device_index(0, i).get('maxInputChannels')) > 0:
+            print("Input Device id ", i, " - ", audio.get_device_info_by_host_api_device_index(0, i).get('name'))
   
     voiced_confidences = []
+    no_voice_found = True
 
     print("Detecting voice")
-    while True:
+    while no_voice_found:
         audio_chunk = stream.read(num_samples, exception_on_overflow = False)    
         # takes significant amount of time
         # if done on the fly in the same thread, brings noticeable artifacts to 
@@ -91,8 +105,12 @@ def detect_voice_activity():
         # check if in 20 latest chunks there is more than 10 with high speech probability
         if (len(list(i for i in voiced_confidences if i >= confidence_threshold)) > conf_enough):
             print("Detected voice activity")
-            record_active_voice(stream)
             voiced_confidences.clear()
+            record_active_voice(stream)
+            
+            lock.release()
+            time.sleep(1)
+            lock.acquire()
     stream.close()
 
 def record_active_voice(stream: pyaudio.Stream):
@@ -109,8 +127,9 @@ def record_active_voice(stream: pyaudio.Stream):
         data.append(audio_chunk)
 
     dt_string = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+    cur_file_name.value = dt_string
     print("Recorded " + str(recording_length) + " seconds at " + dt_string)
-    wf = wave.open(dt_string + '.wav', 'wb')
+    wf = wave.open('./records/' + dt_string + '.wav', 'wb')
     wf.setnchannels(CHANNELS)
     wf.setsampwidth(audio.get_sample_size(FORMAT))
     wf.setframerate(SAMPLE_RATE)
