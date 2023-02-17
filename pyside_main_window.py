@@ -155,7 +155,7 @@ class MainWindow(QMainWindow):
         self.setWindowFlags(Qt.WindowStaysOnTopHint)
         self.setWindowTitle("My App")
         self.setWindowFlag(Qt.FramelessWindowHint)
-        self.setFixedSize(QSize(300, 130))
+        self.setFixedSize(QSize(300, 160))
         
         layout = QVBoxLayout()
 
@@ -167,12 +167,15 @@ class MainWindow(QMainWindow):
         button_1 = QPushButton("Хорошее")
         button_2 = QPushButton("Нейтральное")
         button_3 = QPushButton("Плохое")
+        button_4 = QPushButton("Пропустить запись")
         button_1.clicked.connect(partial(self.set_cur_feeling, ('good')))
         button_2.clicked.connect(partial(self.set_cur_feeling, ('neutral')))
         button_3.clicked.connect(partial(self.set_cur_feeling, ('bad')))
+        button_4.clicked.connect(partial(self.skip_entry))
         layout.addWidget(button_1)
         layout.addWidget(button_2)
         layout.addWidget(button_3)
+        layout.addWidget(button_4)
 
         widget = QWidget()
         widget.setLayout(layout)
@@ -188,6 +191,13 @@ class MainWindow(QMainWindow):
 
     def set_cur_feeling(self, cur_feeling):
         self.write_emotional_state(_cur_file_name.value, cur_feeling)
+        _button_pushed.value = True
+        _ready_recording_present.value = False
+
+    def skip_entry(self):
+        #self.write_emotional_state(_cur_file_name.value, cur_feeling)
+        os.remove('./records/' + _cur_file_name.value + '.wav')
+        print("Recording removed")
         _button_pushed.value = True
         _ready_recording_present.value = False
 
