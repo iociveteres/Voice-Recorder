@@ -138,7 +138,7 @@ def record_active_voice(stream: pyaudio.Stream, _cur_file_name):
         audio_chunk = stream.read(num_samples, exception_on_overflow = False)    
         data.append(audio_chunk)
 
-    dt_string = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+    dt_string = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     _cur_file_name.value = dt_string
     print("Recorded " + str(recording_length) + " seconds at " + dt_string)
     wf = wave.open('./records/' + dt_string + '.wav', 'wb')
