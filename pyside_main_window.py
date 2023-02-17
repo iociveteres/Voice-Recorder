@@ -34,6 +34,7 @@ import wave
 from datetime import datetime
 import multiprocessing as mp
 import ctypes
+import os
 
 
 # PyAudio Setup
@@ -44,7 +45,8 @@ SAMPLE_RATE = 16000
 CHUNK = int(SAMPLE_RATE / 10)
 
 audio = pyaudio.PyAudio()
-recording_length = 5 # in seconds
+recording_length = 15 # in seconds
+time_between_recordings = 1800
 confidence_threshold = 0.92
 conf_length = 20 # how much measurements to take
 conf_enough = 10
@@ -113,6 +115,8 @@ def detect_voice_activity(_cur_file_name, _ready_recording_present):
             _ready_recording_present.value = True
             while _ready_recording_present.value:
                 sleep(0.01)
+            print("Sleeping between recordings for " + str(time_between_recordings) +" seconds")
+            sleep(time_between_recordings)
             
     stream.close()
 
@@ -209,7 +213,7 @@ class MainWindow(QMainWindow):
 def ui_handler(_ready_recording_present, _button_pushed):
     while True:
         while not _ready_recording_present.value:
-            sleep(0.01)
+            sleep(0.1)
         print('Recording ready, showing UI') 
         invoker.invoke_in_main_thread(window.show)
         #window.show()
