@@ -46,7 +46,7 @@ CHUNK = int(SAMPLE_RATE / 10)
 
 audio = pyaudio.PyAudio()
 recording_length = 15 # in seconds
-time_between_recordings = 1800
+time_between_recordings = 300
 confidence_threshold = 0.92
 conf_length = 20 # how much measurements to take
 conf_enough = 10
