@@ -153,3 +153,5 @@ cython_debug/
 *.wav
 records.txt
 *.7z
+here.bat
+records/temp/
