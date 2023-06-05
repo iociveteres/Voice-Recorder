@@ -155,5 +155,11 @@ records.txt
 *.7z
 here.bat
 records/temp/
-transcriptions/navec_hudlit_v1_12B_500K_300d_100q.tar
-whisper/whisper_small_ru.bin
+transcriptions/
+whisper/
+audio/
+remove-silent-vad.ipynb
+silence_marker_malaya_2.py
+silence_marker_malaya_pyaudio.py
+silence_marker_pydub.py
+silent_chunks_pydub.py
