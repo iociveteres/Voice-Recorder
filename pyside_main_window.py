@@ -24,7 +24,6 @@ import numpy as np
 import torch
 torch.set_num_threads(1)
 import torchaudio
-import matplotlib.pylab as plt
 torchaudio.set_audio_backend("soundfile")
 import pyaudio
 
@@ -244,4 +243,3 @@ if __name__ == '__main__':
     
     app.exec()
   
-    
