@@ -7,6 +7,7 @@ class OnnxWrapper():
         opts = onnxruntime.SessionOptions()
         opts.inter_op_num_threads = 1
         opts.intra_op_num_threads = 1
+        opts.log_severity_level = 3
 
         if force_onnx_cpu and 'CPUExecutionProvider' in onnxruntime.get_available_providers():
             self.session = onnxruntime.InferenceSession(path, providers=['CPUExecutionProvider'], sess_options=opts)
