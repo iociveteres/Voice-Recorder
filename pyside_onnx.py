@@ -1,7 +1,6 @@
-from multiprocessing import Manager, Process, Value
+from multiprocessing import Manager, Process, Value, Barrier
 import threading
 import invoker
-import sys
 from time import sleep
 from PySide6.QtCore import (
     QSize, 
@@ -53,11 +52,17 @@ confidence_threshold = 0.92
 conf_length = 20 # how much measurements to take
 conf_enough = 10
 
+stream = None
 window = None
 lock_vad = None
 
 cur_feeling = None
 
+desktop = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop') 
+records_path = 'records'
+records_txt = '_records.txt'
+
+storing_mode = 'single_folder'
 
 def int2float(sound):
     abs_max = np.abs(sound).max()
@@ -67,39 +72,51 @@ def int2float(sound):
     sound = sound.squeeze()  # depends on the use case
     return sound
 
-def detect_voice_activity(_cur_file_name, _ready_recording_present):
-    # model setup
-    # model, utils = hub.load(repo_or_dir='snakers4/silero-vad',
-    #                           model='silero_vad',
-    #                           force_reload=False)
+def make_folders(mode):
+    pass
 
-    # (get_speech_timestamps,
-    # save_audio,
-    # read_audio,
-    # VADIterator,
-    # collect_chunks) = utils
-    model = OnnxWrapper('silero_vad.onnx', True)
+def get_input_devices():
+    info = audio.get_host_api_info_by_index(0)
+    numdevices = info.get('deviceCount') 
+    devices = {}
+    for i in range(0, numdevices):
+        if (audio.get_device_info_by_host_api_device_index(0, i).get('maxInputChannels')) > 0:
+            device_name = audio.get_device_info_by_host_api_device_index(0, i).get('name')
+            if device_name != 'Microsoft Sound Mapper - Input': 
+                devices[i] = device_name
+    return devices
 
-    stream = audio.open(format=FORMAT,
+def select_microphone(mic_id, mic_name, _cur_mic):
+    print(f"Selected microphone: {mic_id}")
+    _cur_mic.value = mic_id
+    for action in microphone_submenu.actions():
+        action.setChecked(action.text() == f'{mic_id}: {mic_name}')
+    
+def open_audio_stream(mic_id):
+    return audio.open(format=FORMAT,
                     channels=CHANNELS,
                     rate=SAMPLE_RATE, 
                     input=True,
                     frames_per_buffer=CHUNK,
-                    input_device_index=1
-                    )
+                    input_device_index=mic_id
+                    )    
 
-    info = audio.get_host_api_info_by_index(0)
-    numdevices = info.get('deviceCount') 
-    for i in range(0, numdevices):
-        if (audio.get_device_info_by_host_api_device_index(0, i).get('maxInputChannels')) > 0:
-            print("Input Device id ", i, " - ", audio.get_device_info_by_host_api_device_index(0, i).get('name'))
-  
+def detect_voice_activity(_cur_file_name, _ready_recording_present, _cur_mic):
+    model = OnnxWrapper('silero_vad.onnx', True)
+    
+    # to actually open stream
+    stream = open_audio_stream(_cur_mic.value)
+    prev_cur_mic = _cur_mic.value
+
     voiced_confidences = []
-
-    #no_voice_found = True
-
     print("Detecting voice")
+
     while True:
+        if prev_cur_mic != _cur_mic.value:
+            prev_cur_mic = _cur_mic.value
+            stream.close()
+            stream = open_audio_stream(_cur_mic.value)
+            print(f'changed mic to {_cur_mic.value}')
         audio_chunk = stream.read(num_samples, exception_on_overflow = False)    
         # takes significant amount of time
         # if done on the fly in the same thread, brings noticeable artifacts to 
@@ -148,7 +165,14 @@ def record_active_voice(stream: pyaudio.Stream, _cur_file_name):
     dt_string = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     _cur_file_name.value = dt_string
     print("Recorded " + str(recording_length) + " seconds at " + dt_string)
-    wf = wave.open('./records/' + dt_string + '.wav', 'wb')
+    wav_file = os.path.normpath(os.path.join(desktop, records_path, dt_string + '.wav'))
+    try:
+        wf = wave.open(wav_file, 'wb')
+    except FileNotFoundError:
+        record_txt_path = os.path.normpath(os.path.join(desktop, 'records'))
+        os.mkdir(record_txt_path)
+        wf = wave.open(wav_file, 'wb')
+    
     wf.setnchannels(CHANNELS)
     wf.setsampwidth(audio.get_sample_size(FORMAT))
     wf.setframerate(SAMPLE_RATE)
@@ -206,16 +230,23 @@ class MainWindow(QMainWindow):
         _ready_recording_present.value = False
 
     def skip_entry(self):
-        #self.write_emotional_state(_cur_file_name.value, cur_feeling)
-        os.remove('./records/' + _cur_file_name.value + '.wav')
+        wav_file = os.path.normpath(os.path.join(desktop, records_path, _cur_file_name.value + '.wav'))
+        os.remove(wav_file)
         print("Recording removed")
         _button_pushed.value = True
         _ready_recording_present.value = False
 
 
     def write_emotional_state(self, record_name: str, result: str):
-        with open('./records/_records.txt', 'a') as f:
-            f.write(record_name + ': ' + result + '\n')
+        record_txt_path = os.path.normpath(os.path.join(desktop, records_path))
+        try:
+            with open(os.path.join(record_txt_path, records_txt), 'a') as f:
+                f.write(record_name + ': ' + result + '\n')
+        except FileNotFoundError:
+            record_txt_path = os.path.normpath(os.path.join(desktop, 'records'))
+            os.mkdir(record_txt_path)
+            with open(os.path.join(record_txt_path, records_txt), 'w') as f:
+                f.write(record_name + ': ' + result + '\n')
 
 def ui_handler(_ready_recording_present, _button_pushed):
     while True:
@@ -226,21 +257,10 @@ def ui_handler(_ready_recording_present, _button_pushed):
         #window.show()
         while not _button_pushed.value:
             sleep(0.1)
-        # подождать нажатия на кнопку
+        # wait for button push
         print('Button pushed, hiding UI') 
         _button_pushed.value = False
         invoker.invoke_in_main_thread(window.hide)
-        #window.hide()
-
-def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
-    try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
-
-    return os.path.join(base_path, relative_path)
 
 def quit_():
     p.terminate()
@@ -255,29 +275,49 @@ if __name__ == '__main__':
     _cur_file_name = manager.Value(ctypes.c_wchar_p, '00-00-0000_00-00-00')
     _ready_recording_present = Value(ctypes.c_bool, False)
     _button_pushed = Value(ctypes.c_bool, False)
+    _cur_mic = Value(ctypes.c_int, False)
 
     window = MainWindow(_ready_recording_present, _button_pushed, _cur_file_name)
     window.hide()
 
     tray = QSystemTrayIcon()
-    icon = QIcon(resource_path("mic_icon.png"))
+    icon = QIcon('mic_icon.png')
     tray.setIcon(icon)
     tray.setVisible(True)
 
     # Create the menu
     menu = QMenu()
-    # action = QAction("A menu item")
-    # menu.addAction(action)
+    
+    mics = get_input_devices()
+    microphone_submenu = QMenu("Микрофон")
+    menu.addMenu(microphone_submenu)
+    mic_actions = []
+    for mic_id in mics:
+        mic_actions.append(QAction(f'{mic_id}: {mics[mic_id]}'))
+        mic_actions[-1].setCheckable(True)
+        mic_actions[-1].triggered.connect(lambda _cur_mic = _cur_mic, mic=mic_id, 
+                                          mic_name = mics[mic_id]: 
+                                    select_microphone(mic, mic_name, _cur_mic))
+        microphone_submenu.addAction(mic_actions[-1])
+
+    for key in mics:
+        print("Input Device id ", key, " - ", mics[key])
+    # get any mic from the dict to initialize
+    mic_id = next(iter(mics.keys()))
+    print(mic_id)
+    mic_name = mics[mic_id]
+    _cur_mic.value = mic_id
+    select_microphone(mic_id, mic_name, _cur_mic)
 
     # Add a Quit option to the menu.
     quit = QAction("Выход")
     quit.triggered.connect(quit_)
     menu.addAction(quit)
-
     # Add the menu to the tray
     tray.setContextMenu(menu)
     
-    p = Process(target=detect_voice_activity, args=(_cur_file_name, _ready_recording_present))
+    barrier = Barrier(2)
+    p = Process(target=detect_voice_activity, args=(_cur_file_name, _ready_recording_present, _cur_mic))
     p.start()
     stop_listener = threading.Thread(target=ui_handler, args=(_ready_recording_present, _button_pushed))
     stop_listener.start()
