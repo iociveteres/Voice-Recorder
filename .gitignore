@@ -157,9 +157,11 @@ here.bat
 records/temp/
 transcriptions/
 whisper/
-audio/
+trained_models/
 remove-silent-vad.ipynb
 silence_marker_malaya_2.py
 silence_marker_malaya_pyaudio.py
 silence_marker_pydub.py
 silent_chunks_pydub.py
+dest/
+notebooks_utils/
