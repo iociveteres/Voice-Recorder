@@ -1,4 +1,4 @@
-from multiprocessing import Manager, Process, Value, Barrier
+from multiprocessing import Manager, Process, Value
 import threading
 import invoker
 from time import sleep
@@ -315,8 +315,7 @@ if __name__ == '__main__':
     menu.addAction(quit)
     # Add the menu to the tray
     tray.setContextMenu(menu)
-    
-    barrier = Barrier(2)
+
     p = Process(target=detect_voice_activity, args=(_cur_file_name, _ready_recording_present, _cur_mic))
     p.start()
     stop_listener = threading.Thread(target=ui_handler, args=(_ready_recording_present, _button_pushed))
