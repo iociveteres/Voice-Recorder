@@ -164,4 +164,6 @@ silence_marker_malaya_pyaudio.py
 silence_marker_pydub.py
 silent_chunks_pydub.py
 dest/
+dest_timer/
 notebooks_utils/
+.vscode/settings.json
